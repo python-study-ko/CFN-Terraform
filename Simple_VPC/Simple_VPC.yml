@@ -1,0 +1,138 @@
+---
+Resources:
+  SimpleVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.21.0.0/16
+
+  SimpleVPCIpv6:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref SimpleVPC
+      AmazonProvidedIpv6CidrBlock: true
+
+  SimpleIGW:
+    Type: AWS::EC2::InternetGateway
+
+  SimpleVPCIGWAssoc:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SimpleVPC
+      InternetGatewayId: !Ref SimpleIGW
+
+  SimpleSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SimpleVPC
+      CidrBlock: 10.21.0.0/24
+
+  SimpleRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SimpleVPC
+
+  SimpleRouteIpv4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref SimpleRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref SimpleIGW
+
+  SimpleRouteIpv6:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref SimpleRouteTable
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !Ref SimpleIGW
+
+  SimpleSubnetRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SimpleSubnet
+      RouteTableId: !Ref SimpleRouteTable
+
+  SimpleNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref SimpleVPC
+
+  SimpleNACLIngressSSH:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref SimpleNACL
+      RuleNumber: 1
+      Protocol: 6 # TCP
+      PortRange:
+        From: 22
+        To: 22
+      CidrBlock: 0.0.0.0/0
+      RuleAction: allow
+
+  SimpleNACLIngressHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref SimpleNACL
+      RuleNumber: 10
+      Protocol: 6 # TCP
+      PortRange:
+        From: 80
+        To: 80
+      CidrBlock: 0.0.0.0/0
+      RuleAction: allow
+
+  SimpleNACLIngressHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref SimpleNACL
+      RuleNumber: 11
+      Protocol: 6 # TCP
+      PortRange:
+        From: 443
+        To: 443
+      CidrBlock: 0.0.0.0/0
+      RuleAction: allow
+
+  SimpleNACLEgressHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref SimpleNACL
+      RuleNumber: 10
+      Protocol: 6 # TCP
+      PortRange:
+        From: 80
+        To: 80
+      CidrBlock: 0.0.0.0/0
+      RuleAction: allow
+      Egress: true
+
+  SimpleNACLEgressHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref SimpleNACL
+      RuleNumber: 11
+      Protocol: 6
+      PortRange:
+        From: 443
+        To: 443
+      CidrBlock: 0.0.0.0/0
+      RuleAction: allow
+      Egress: true
+
+  SimpleNACLEgressTemp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref SimpleNACL
+      RuleNumber: 100
+      Protocol: 6
+      PortRange:
+        From: 32768
+        To: 65535
+      CidrBlock: 0.0.0.0/0
+      RuleAction: allow
+      Egress: true
+
+  SimpleSubnetNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref SimpleSubnet
+      NetworkAclId: !Ref SimpleNACL

@@ -13,3 +13,7 @@ Compare of AWS CloudFormation and Terraform
 변경사항을 commit 할 경우에는 가능하면 하나의 완성된 결과물이 하나의 commit 이 될 수 있도록 [squash](https://git-scm.com/book/ko/v1/Git-%EB%8F%84%EA%B5%AC-%ED%9E%88%EC%8A%A4%ED%86%A0%EB%A6%AC-%EB%8B%A8%EC%9E%A5%ED%95%98%EA%B8%B0#%EC%BB%A4%EB%B0%8B-%ED%95%A9%EC%B9%98%EA%B8%B0) 해서 push 하는 것을 추천합니다.  
 구성의 단계를 보여주는 것이 도움이 되거나, 특별히 변경사항을 기록하는 것이 의미가 있는 경우에는 commit 을 나누도록 합니다.  
 commit 타이틀은 `[구성 이름]::[CFN/Terraform]::[commit title/message]` 형태로 적도록 하고, 변경사항이 많은 경우 [커밋 메세지를 여러 줄로 생성](http://yonomi.tistory.com/177)해 커밋 본문에 상세한 변경사항을 적도록 합니다.
+
+## WARNING!!
+CloudFormation Stack 을 생성하면 사용한 리소스에 따라 비용이 청구될 수 있습니다.  
+따라서 실 서비스가 아닌 테스트 용도라면 Stack 이 의도대로 생성되는 것을 확인한 후 꼭 삭제해야 의도치 않은 비용 발생을 막을 수 있습니다.  

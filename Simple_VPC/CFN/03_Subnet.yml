@@ -1,0 +1,39 @@
+---
+# This yml has Subnet, Route Table Settings
+Resources:
+  SimpleSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue SimpleVPC
+      CidrBlock: 10.21.0.0/24
+
+  SimpleSubnetNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref SimpleSubnet
+      NetworkAclId: !ImportValue SimpleNACL
+
+  SimpleRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue SimpleVPC
+
+  SimpleRouteIpv4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref SimpleRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !ImportValue SimpleIGW
+
+  SimpleRouteIpv6:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref SimpleRouteTable
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !ImportValue SimpleIGW
+
+  SimpleSubnetRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SimpleSubnet
+      RouteTableId: !Ref SimpleRouteTable

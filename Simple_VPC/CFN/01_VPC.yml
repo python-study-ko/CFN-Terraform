@@ -1,0 +1,35 @@
+---
+# This yml has VPC, IGW settings
+Resources:
+  SimpleVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.21.0.0/16
+
+  SimpleVPCIpv6:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref SimpleVPC
+      AmazonProvidedIpv6CidrBlock: true
+
+  SimpleIGW:
+    Type: AWS::EC2::InternetGateway
+
+  SimpleVPCIGWAssoc:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SimpleVPC
+      InternetGatewayId: !Ref SimpleIGW
+
+Outputs:
+  SimpleVPC:
+    Description: Simple VPC
+    Value: !Ref SimpleVPC
+    Export:
+      Name: SimpleVPC
+
+  SimpleIGW:
+    Description: Simple IGW
+    Value: !Ref SimpleIGW
+    Export:
+      Name: SimpleIGW

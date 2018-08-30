@@ -1,0 +1,604 @@
+AWSTemplateFormatVersion: 2010-09-09
+####### Parameters #######
+Parameters:
+  SubnetAZ1:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: AZ to set subnet
+
+  SubnetAZ2:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: AZ to set subnet
+
+  PublicSubnetCidr1:
+    Type: String
+    AllowedValues:
+      - 10.21.0.0/24
+      - 10.21.1.0/24
+
+  PublicSubnetCidr2:
+    Type: String
+    AllowedValues:
+      - 10.21.0.0/24
+      - 10.21.1.0/24
+
+  PrivateSubnetCidr1:
+    Type: String
+    AllowedValues:
+      - 10.21.10.0/24
+      - 10.21.11.0/24
+
+  PrivateSubnetCidr2:
+    Type: String
+    AllowedValues:
+      - 10.21.10.0/24
+      - 10.21.11.0/24
+
+  InternalSubnetCidr1:
+    Type: String
+    AllowedValues:
+      - 10.21.20.0/24
+      - 10.21.21.0/24
+
+  InternalSubnetCidr2:
+    Type: String
+    AllowedValues:
+      - 10.21.20.0/24
+      - 10.21.21.0/24
+
+  BastionType:
+    Type: String
+    AllowedValues:
+      - t2.micro
+      - t2.small
+
+  BastionKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: pem Key to access bastion
+
+###### Mappings #######
+Mappings:
+  RegionAMIMapping:
+    us-east-1:
+      ubuntu: ami-04169656fea786776
+    us-west-2:
+      ubuntu: ami-51537029
+
+####### Resources #######
+Resources:
+  BastionVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.21.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: BastionVPC
+
+  BastionVPCIpv6CidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      AmazonProvidedIpv6CidrBlock: true
+      VpcId: !Ref BastionVPC
+
+  BastionIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: BastionIGW
+
+  BastionIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BastionVPC
+      InternetGatewayId: !Ref BastionIGW
+
+  ##### Public Subnet Settings
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: BastionVPCIpv6CidrBlock
+    Properties:
+      VpcId: !Ref BastionVPC
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Ref SubnetAZ1
+      CidrBlock: !Ref PublicSubnetCidr1
+      Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt BastionVPC.Ipv6CidrBlocks], 256, 64]]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: BastionVPCIpv6CidrBlock
+    Properties:
+      VpcId: !Ref BastionVPC
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Ref SubnetAZ2
+      CidrBlock: !Ref PublicSubnetCidr2
+      Ipv6CidrBlock: !Select [1, !Cidr [!Select [0, !GetAtt BastionVPC.Ipv6CidrBlocks], 256, 64]]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
+
+  ### Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  PublicRouteIpv4:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref BastionIGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteIpv6:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !Ref BastionIGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteTableAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteTableAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  ### NACL
+  PublicNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: PublicNACL
+
+  PublicNACLIngressAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PublicNACL
+      RuleNumber: 1
+      CidrBlock: 0.0.0.0/0
+      Protocol: -1
+      RuleAction: allow
+
+  PublicNACLEgressAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PublicNACL
+      RuleNumber: 1
+      CidrBlock: 0.0.0.0/0
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+
+  PublicNACLAssoc1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      NetworkAclId: !Ref PublicNACL
+
+  PublicNACLAssoc2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      NetworkAclId: !Ref PublicNACL
+
+  ##### Private Subnet Settings
+  ### Private1
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BastionVPC
+      AvailabilityZone: !Ref SubnetAZ1
+      CidrBlock: !Ref PrivateSubnetCidr1
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1
+
+  NATGWEIP1:
+    Type: AWS::EC2::EIP
+
+  NATGW1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      AllocationId: !GetAtt NATGWEIP1.AllocationId
+      Tags:
+        - Key: Name
+          Value: NATGW1
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable1
+
+  Private1Route:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateRouteTableAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  ### Private2
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BastionVPC
+      AvailabilityZone: !Ref SubnetAZ2
+      CidrBlock: !Ref PrivateSubnetCidr2
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2
+
+  NATGWEIP2:
+    Type: AWS::EC2::EIP
+
+  NATGW2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      AllocationId: !GetAtt NATGWEIP2.AllocationId
+      Tags:
+        - Key: Name
+          Value: NATGW2
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable2
+
+  Private2Route:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  PrivateRouteTableAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  ### NACL
+  PrivateNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: PrivateNACL
+
+  PrivateIngressSSH1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 1
+      CidrBlock: !Ref PublicSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 22
+        To: 22
+      RuleAction: allow
+
+  PrivateIngressSSH2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 2
+      CidrBlock: !Ref PublicSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 22
+        To: 22
+      RuleAction: allow
+
+  PrivateIngressHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 10
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 80
+        To: 80
+      RuleAction: allow
+
+  PrivateIngressHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 11
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 443
+        To: 443
+      RuleAction: allow
+
+  PrivateEgressHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 10
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 80
+        To: 80
+      RuleAction: allow
+      Egress: True
+
+  PrivateEgressHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 11
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 443
+        To: 443
+      RuleAction: allow
+      Egress: True
+
+  PrivateIngressTemp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 100
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 1024
+        To: 65535
+      RuleAction: allow
+
+  PrivateEgressTemp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 100
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 1024
+        To: 65535
+      RuleAction: allow
+      Egress: true
+
+  PrivateEgressMySQL1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 20
+      CidrBlock: !Ref InternalSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+      Egress: true
+
+  PrivateEgressMySQL2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 21
+      CidrBlock: !Ref InternalSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+      Egress: true
+
+  PrivateNACLAssoc1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      NetworkAclId: !Ref PrivateNACL
+
+  PrivateNACLAssoc2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      NetworkAclId: !Ref PrivateNACL
+
+  ##### Internal Subnet Settings
+  InternalSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BastionVPC
+      AvailabilityZone: !Ref SubnetAZ1
+      CidrBlock: !Ref InternalSubnetCidr1
+      Tags:
+        - Key: Name
+          Value: InternalSubnet1
+
+  InternalSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BastionVPC
+      AvailabilityZone: !Ref SubnetAZ2
+      CidrBlock: !Ref InternalSubnetCidr2
+      Tags:
+        - Key: Name
+          Value: InternalSubnet2
+
+  ### Route Table
+  InternalRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: InternalRouteTable
+
+  InternalRouteTableAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet1
+      RouteTableId: !Ref InternalRouteTable
+
+  InternalRouteTableAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet2
+      RouteTableId: !Ref InternalRouteTable
+
+  ### NACL
+  InternalNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref BastionVPC
+      Tags:
+        - Key: Name
+          Value: InternalNACL
+
+  InternalIngressMySQL1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 1
+      CidrBlock: !Ref PrivateSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+
+  InternalIngressMySQL2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 2
+      CidrBlock: !Ref PrivateSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+
+  InternalEgressTemp1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 1
+      CidrBlock: !Ref PrivateSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 32768
+        To: 65535
+      RuleAction: allow
+      Egress: true
+
+  InternalEgressTemp2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 2
+      CidrBlock: !Ref PrivateSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 32768
+        To: 65535
+      RuleAction: allow
+      Egress: true
+
+  InternalNACLAssoc1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet1
+      NetworkAclId: !Ref InternalNACL
+
+  InternalNACLAssoc2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet2
+      NetworkAclId: !Ref InternalNACL
+
+  ##### Bastion
+  Bastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref SubnetAZ1
+      CreditSpecification:
+        CPUCredits: unlimited
+      ImageId: !FindInMap [RegionAMIMapping, !Ref 'AWS::Region', ubuntu]
+      InstanceType: !Ref BastionType
+      KeyName: !Ref BastionKey
+      SecurityGroupIds:
+        - !GetAtt BastionSG.GroupId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: Bastion
+
+  ##### Security Group
+  ### Bastion
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "BastionSG"
+      GroupDescription: Security Group for Bastion
+      VpcId: !Ref BastionVPC
+      SecurityGroupIngress:
+        Description: "SSH"
+        IpProtocol: "tcp"
+        FromPort: 22
+        ToPort: 22
+        CidrIp: "0.0.0.0/0"
+      Tags:
+      - Key: Name
+        Value: "BastionSG"
+
+####### Metadata #######
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration for AZ1"
+        Parameters:
+          - SubnetAZ1
+          - PublicSubnetCidr1
+          - PrivateSubnetCidr1
+          - InternalSubnetCidr1
+      - Label:
+          default: "Network Configuration for AZ2"
+        Parameters:
+          - SubnetAZ2
+          - PublicSubnetCidr2
+          - PrivateSubnetCidr2
+          - InternalSubnetCidr2
+      - Label:
+          default: "Settings for Bastion"
+        Parameters:
+          - BastionType
+          - BastionKey

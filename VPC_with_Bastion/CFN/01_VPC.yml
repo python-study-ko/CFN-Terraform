@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  SubnetAZ1:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: AZ to set subnet
+
+  SubnetAZ2:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: AZ to set subnet
+
+Resources:
+  BastionVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.21.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: BastionVPC
+
+  BastionVPCIpv6CidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      AmazonProvidedIpv6CidrBlock: true
+      VpcId: !Ref BastionVPC
+
+  BastionIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: BastionIGW
+
+  BastionIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BastionVPC
+      InternetGatewayId: !Ref BastionIGW
+
+Outputs:
+  BastionVPC:
+    Description: Bastion VPC
+    Value: !Ref BastionVPC
+    Export:
+      Name: BastionVPC
+
+  BastionIGW:
+    Description: Bastion IGW
+    Value: !Ref BastionIGW
+    Export:
+      Name: BastionIGW
+
+  BastionVPCIpv6Cidr:
+    Description: IPv6 CIDR Block of this VPC
+    Value: !Select [0, !GetAtt BastionVPC.Ipv6CidrBlocks]
+    Export:
+      Name: BastionVPCIpv6Cidr
+
+  SubnetAZ1:
+    Description: AZ for Subnet1s
+    Value: !Ref SubnetAZ1
+    Export:
+      Name: SubnetAZ1
+
+  SubnetAZ2:
+    Description: AZ for Subnet2s
+    Value: !Ref SubnetAZ2
+    Export:
+      Name: SubnetAZ2
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "AZ for VPC/Subnet"
+        Parameters:
+          - SubnetAZ1
+          - SubnetAZ2

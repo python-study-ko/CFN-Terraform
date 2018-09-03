@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  BastionType:
+    Type: String
+    AllowedValues:
+      - t2.micro
+      - t2.small
+
+  BastionKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: pem Key to access bastion
+
+Mappings:
+  RegionAMIMapping:
+    us-east-1:
+      ubuntu: ami-04169656fea786776
+    us-west-2:
+      ubuntu: ami-51537029
+
+Resources:
+  Bastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !ImportValue SubnetAZ1
+      CreditSpecification:
+        CPUCredits: unlimited
+      ImageId: !FindInMap [RegionAMIMapping, !Ref 'AWS::Region', ubuntu]
+      InstanceType: !Ref BastionType
+      KeyName: !Ref BastionKey
+      SecurityGroupIds:
+        - !GetAtt BastionSG.GroupId
+      SubnetId: !ImportValue PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: Bastion
+
+  ##### Security Group
+  ### Bastion
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "BastionSG"
+      GroupDescription: Security Group for Bastion
+      VpcId: !ImportValue BastionVPC
+      SecurityGroupIngress:
+        Description: "SSH"
+        IpProtocol: "tcp"
+        FromPort: 22
+        ToPort: 22
+        CidrIp: "0.0.0.0/0"
+      Tags:
+      - Key: Name
+        Value: "BastionSG"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Settings for Bastion"
+        Parameters:
+          - BastionType
+          - BastionKey

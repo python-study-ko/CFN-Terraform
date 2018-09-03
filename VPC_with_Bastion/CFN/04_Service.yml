@@ -1,0 +1,389 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  PrivateSubnetCidr1:
+    Type: String
+    AllowedValues:
+      - 10.21.10.0/24
+      - 10.21.11.0/24
+
+  PrivateSubnetCidr2:
+    Type: String
+    AllowedValues:
+      - 10.21.10.0/24
+      - 10.21.11.0/24
+
+  InternalSubnetCidr1:
+    Type: String
+    AllowedValues:
+      - 10.21.20.0/24
+      - 10.21.21.0/24
+
+  InternalSubnetCidr2:
+    Type: String
+    AllowedValues:
+      - 10.21.20.0/24
+      - 10.21.21.0/24
+
+Resources:
+    ##### Private Subnet Settings
+  ### Private1
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      AvailabilityZone: !ImportValue SubnetAZ1
+      CidrBlock: !Ref PrivateSubnetCidr1
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1
+
+  NATGWEIP1:
+    Type: AWS::EC2::EIP
+
+  NATGW1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !ImportValue PublicSubnet1
+      AllocationId: !GetAtt NATGWEIP1.AllocationId
+      Tags:
+        - Key: Name
+          Value: NATGW1
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable1
+
+  Private1Route:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateRouteTableAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  ### Private2
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      AvailabilityZone: !ImportValue SubnetAZ2
+      CidrBlock: !Ref PrivateSubnetCidr2
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2
+
+  NATGWEIP2:
+    Type: AWS::EC2::EIP
+
+  NATGW2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !ImportValue PublicSubnet2
+      AllocationId: !GetAtt NATGWEIP2.AllocationId
+      Tags:
+        - Key: Name
+          Value: NATGW2
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable2
+
+  Private2Route:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  PrivateRouteTableAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  ### NACL
+  PrivateNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: PrivateNACL
+
+  PrivateIngressSSH1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 1
+      CidrBlock: !ImportValue PublicSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 22
+        To: 22
+      RuleAction: allow
+
+  PrivateIngressSSH2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 2
+      CidrBlock: !ImportValue PublicSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 22
+        To: 22
+      RuleAction: allow
+
+  PrivateIngressHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 10
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 80
+        To: 80
+      RuleAction: allow
+
+  PrivateIngressHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 11
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 443
+        To: 443
+      RuleAction: allow
+
+  PrivateEgressHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 10
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 80
+        To: 80
+      RuleAction: allow
+      Egress: True
+
+  PrivateEgressHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 11
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 443
+        To: 443
+      RuleAction: allow
+      Egress: True
+
+  PrivateIngressTemp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 100
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 1024
+        To: 65535
+      RuleAction: allow
+
+  PrivateEgressTemp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 100
+      CidrBlock: 0.0.0.0/0
+      Protocol: 6
+      PortRange:
+        From: 1024
+        To: 65535
+      RuleAction: allow
+      Egress: true
+
+  PrivateEgressMySQL1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 20
+      CidrBlock: !Ref InternalSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+      Egress: true
+
+  PrivateEgressMySQL2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PrivateNACL
+      RuleNumber: 21
+      CidrBlock: !Ref InternalSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+      Egress: true
+
+  PrivateNACLAssoc1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      NetworkAclId: !Ref PrivateNACL
+
+  PrivateNACLAssoc2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      NetworkAclId: !Ref PrivateNACL
+
+  ##### Internal Subnet Settings
+  InternalSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      AvailabilityZone: !ImportValue SubnetAZ1
+      CidrBlock: !Ref InternalSubnetCidr1
+      Tags:
+        - Key: Name
+          Value: InternalSubnet1
+
+  InternalSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      AvailabilityZone: !ImportValue SubnetAZ2
+      CidrBlock: !Ref InternalSubnetCidr2
+      Tags:
+        - Key: Name
+          Value: InternalSubnet2
+
+  ### Route Table
+  InternalRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: InternalRouteTable
+
+  InternalRouteTableAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet1
+      RouteTableId: !Ref InternalRouteTable
+
+  InternalRouteTableAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet2
+      RouteTableId: !Ref InternalRouteTable
+
+  ### NACL
+  InternalNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: InternalNACL
+
+  InternalIngressMySQL1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 1
+      CidrBlock: !Ref PrivateSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+
+  InternalIngressMySQL2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 2
+      CidrBlock: !Ref PrivateSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 3306
+        To: 3306
+      RuleAction: allow
+
+  InternalEgressTemp1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 1
+      CidrBlock: !Ref PrivateSubnetCidr1
+      Protocol: 6
+      PortRange:
+        From: 32768
+        To: 65535
+      RuleAction: allow
+      Egress: true
+
+  InternalEgressTemp2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref InternalNACL
+      RuleNumber: 2
+      CidrBlock: !Ref PrivateSubnetCidr2
+      Protocol: 6
+      PortRange:
+        From: 32768
+        To: 65535
+      RuleAction: allow
+      Egress: true
+
+  InternalNACLAssoc1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet1
+      NetworkAclId: !Ref InternalNACL
+
+  InternalNACLAssoc2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref InternalSubnet2
+      NetworkAclId: !Ref InternalNACL
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "CIDR Block for Private Subnet"
+        Parameters:
+          - PrivateSubnetCidr1
+          - PrivateSubnetCidr2
+      - Label:
+          default: "CIDR Block for Internal Subnet"
+        Parameters:
+          - InternalSubnetCidr1
+          - InternalSubnetCidr2

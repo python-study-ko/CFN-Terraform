@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+
+  PublicSubnetCidr1:
+    Type: String
+    AllowedValues:
+      - 10.21.0.0/24
+      - 10.21.1.0/24
+
+  PublicSubnetCidr2:
+    Type: String
+    AllowedValues:
+      - 10.21.0.0/24
+      - 10.21.1.0/24
+
+Resources:
+    ##### Public Subnet Settings
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    # Multiple Stack Ensures IPv6 Block Exist
+#    DependsOn: BastionVPCIpv6CidrBlock
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !ImportValue SubnetAZ1
+      CidrBlock: !Ref PublicSubnetCidr1
+      Ipv6CidrBlock: !Select [0, !Cidr [!ImportValue BastionVPCIpv6Cidr, 256, 64]]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+#    DependsOn: BastionVPCIpv6CidrBlock
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !ImportValue SubnetAZ2
+      CidrBlock: !Ref PublicSubnetCidr2
+      Ipv6CidrBlock: !Select [1, !Cidr [!ImportValue BastionVPCIpv6Cidr, 256, 64]]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
+
+  ### Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  PublicRouteIpv4:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !ImportValue BastionIGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteIpv6:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !ImportValue BastionIGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteTableAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteTableAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  ### NACL
+  PublicNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !ImportValue BastionVPC
+      Tags:
+        - Key: Name
+          Value: PublicNACL
+
+  PublicNACLIngressAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PublicNACL
+      RuleNumber: 1
+      CidrBlock: 0.0.0.0/0
+      Protocol: -1
+      RuleAction: allow
+
+  PublicNACLEgressAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref PublicNACL
+      RuleNumber: 1
+      CidrBlock: 0.0.0.0/0
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+
+  PublicNACLAssoc1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      NetworkAclId: !Ref PublicNACL
+
+  PublicNACLAssoc2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      NetworkAclId: !Ref PublicNACL
+
+Outputs:
+  PublicSubnetCidr1:
+    Description: Cidr Block of PublicSubnet1
+    Value: !Ref PublicSubnetCidr1
+    Export:
+      Name: PublicSubnetCidr1
+
+  PublicSubnetCidr2:
+    Description: Cidr Block of PublicSubnet2
+    Value: !Ref PublicSubnetCidr2
+    Export:
+      Name: PublicSubnetCidr2
+
+  PublicSubnet1:
+    Description: Subnet for Bastion
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: PublicSubnet1
+
+  PublicSubnet2:
+    Description: Subnet for Bastion
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: PublicSubnet2
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Public Subnet Settings"
+        Parameters:
+          - PublicSubnetCidr1
+          - PublicSubnetCidr2
